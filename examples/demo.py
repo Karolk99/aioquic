@@ -5,6 +5,7 @@
 import datetime
 import os
 from urllib.parse import urlencode
+import time
 
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse, Response
@@ -98,33 +99,53 @@ async def ws(websocket):
         pass
 
 
-async def wt(scope: Scope, receive: Receive, send: Send) -> None:
+async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
     """
     WebTransport echo endpoint.
     """
     # accept connection
     message = await receive()
+
     assert message["type"] == "webtransport.connect"
     await send({"type": "webtransport.accept"})
 
-    # echo back received data
-    while True:
-        message = await receive()
-        if message["type"] == "webtransport.datagram.receive":
-            await send(
-                {
-                    "data": message["data"],
-                    "type": "webtransport.datagram.send",
-                }
-            )
-        elif message["type"] == "webtransport.stream.receive":
-            await send(
-                {
-                    "data": message["data"],
-                    "stream": message["stream"],
-                    "type": "webtransport.stream.send",
-                }
-            )
+    results = {}
+    segments = {}
+
+    with open("stats.csv", 'w') as file:
+        file.write("segment_no,latency\n")
+
+        while True:
+            message = await receive()
+
+            stream = message["stream"]
+            data = message["data"]
+
+            if message["type"] == "webtransport.stream.receive" and data:
+                if stream not in results:
+                    segments[stream] = 0
+
+                start_segment(results, segments, stream, data[0:13])
+                end_segment(results, segments, stream, data[-1], file)
+        
+
+
+
+def start_segment(results, segments, stream_no, timestamp):
+    timestamp = timestamp.decode('utf-8')
+    if timestamp.isdigit():
+        results[f"{stream_no}:{segments[stream_no]}"] = {"sent": int(timestamp)}
+
+def end_segment(results, segments, stream_no, end_sign, file):
+    if end_sign == 69:
+        stats = results.get(f"{stream_no}:{segments[stream_no]}")
+        stats["recv"] = time.time_ns() // 1000000
+
+        results[f"{stream_no}:{segments[stream_no]}"] = stats
+        file.write(f"{stream_no}:{segments[stream_no]},{stats['recv'] - stats['sent']}\n")
+
+        print(stats['recv'] - stats['sent'])
+        segments[stream_no] += 1
 
 
 starlette = Starlette(
