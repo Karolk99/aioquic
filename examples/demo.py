@@ -109,11 +109,10 @@ async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
     assert message["type"] == "webtransport.connect"
     await send({"type": "webtransport.accept"})
 
-    results = {}
-    segments = {}
+    state = {}
 
     with open("stats.csv", 'w') as file:
-        file.write("segment_no,latency\n")
+        file.write("segment_no,latency,sent,recv,number\n")
 
         while True:
             message = await receive()
@@ -122,31 +121,53 @@ async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
             data = message["data"]
 
             if message["type"] == "webtransport.stream.receive" and data:
-                if stream not in results:
-                    segments[stream] = 0
+                if stream not in state:
+                    state[stream] = {"current": 0, "next_value": "S"}
 
-                start_segment(results, segments, stream, data[0:13])
-                end_segment(results, segments, stream, data[-1], file)
+                handle_process(state, stream, data, file)
+
+
+def handle_process(state, stream, data, file):
+    while True:
+        next_value = state[stream]["next_value"]
+
+        if next_value.encode("utf-8") not in data:
+            return next_value
+
+        idx = data.index(next_value.encode("utf-8"))
         
+        if next_value == "S":
+            handle_start(state, stream, data[1:4], data[4:17])
+            state[stream]["next_value"] = "E"
+        else:
+            handle_end(state, stream, file)
+            state[stream]["next_value"] = "S"
+
+        data = data[idx + 1:]
+
+def handle_start(state, stream, number, timestamp):
+    timestamp = int(timestamp.decode('utf-8'))
+    number = int(number.decode('utf-8'))
+    
+    current = state[stream]["current"]
+    state[stream][current] = {"sent": timestamp, "number": number}
+
+def handle_end(state, stream, file):
+    current = state[stream]["current"]
+    state[stream][current]["recv"] = time.time_ns() // 1000000
+
+    name = f"{stream}:{current}"
+    segment = state[stream][current]
+
+    save_segment(name, segment, file)
+
+    state[stream]["current"] += 1
 
 
-
-def start_segment(results, segments, stream_no, timestamp):
-    timestamp = timestamp.decode('utf-8')
-    if timestamp.isdigit():
-        results[f"{stream_no}:{segments[stream_no]}"] = {"sent": int(timestamp)}
-
-def end_segment(results, segments, stream_no, end_sign, file):
-    if end_sign == 69:
-        stats = results.get(f"{stream_no}:{segments[stream_no]}")
-        stats["recv"] = time.time_ns() // 1000000
-
-        results[f"{stream_no}:{segments[stream_no]}"] = stats
-        file.write(f"{stream_no}:{segments[stream_no]},{stats['recv'] - stats['sent']}\n")
-
-        print(stats['recv'] - stats['sent'])
-        segments[stream_no] += 1
-
+def save_segment(name, segment, file):
+    duration = segment["recv"] - segment["sent"]
+    file.write(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']}\n")
+    print(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']}\n")
 
 starlette = Starlette(
     routes=[

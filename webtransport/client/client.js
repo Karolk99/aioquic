@@ -145,7 +145,7 @@ async function connect() {
     });
 
   const segmentLength = 2000;
-  perfrom_test_4(transport, segmentLength);
+  perfrom_test_2(transport, segmentLength);
 }
 
 function create_segment(idx, encoder, intervalTime) {
@@ -153,8 +153,10 @@ function create_segment(idx, encoder, intervalTime) {
   const timestamp = Date.now().toString();
 
   const segment =
+    "S" + 
+    idx.toString().padStart(3, '0') + 
     timestamp +
-    longString.substring(max_size - (size - timestamp.length), max_size);
+    longString.substring(max_size - (size - timestamp.length - 1), max_size);
   const encodedSegment = encoder.encode(segment);
 
   return encodedSegment;
