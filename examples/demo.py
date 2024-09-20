@@ -110,6 +110,7 @@ async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
     await send({"type": "webtransport.accept"})
 
     state = {}
+    rest = {}
 
     with open("stats.csv", 'w') as file:
         file.write("segment_no,latency,sent,recv,number\n")
@@ -123,8 +124,10 @@ async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
             if message["type"] == "webtransport.stream.receive" and data:
                 if stream not in state:
                     state[stream] = {"current": 0, "next_value": "S"}
+                    rest[stream] = b''
 
-                handle_process(state, stream, data, file)
+                new_data = rest[stream] + data
+                rest[stream] = handle_process(state, stream, new_data, file)
 
 
 def handle_process(state, stream, data, file):
@@ -132,7 +135,10 @@ def handle_process(state, stream, data, file):
         next_value = state[stream]["next_value"]
 
         if next_value.encode("utf-8") not in data:
-            return next_value
+            return b''
+        
+        if next_value == "S" and len(data) < 18:
+            return data
 
         idx = data.index(next_value.encode("utf-8"))
         

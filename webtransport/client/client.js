@@ -1,5 +1,107 @@
 // Adds an entry to the event log on the page, optionally applying a specified
 // CSS class.
+const hob = [
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  500000,
+  500000,
+  500000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  500000,
+  500000,
+  500000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  500000,
+  500000,
+  500000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+  125000,
+];
 
 const one_second = [
   60092, 111919, 177018, 146783, 117636, 169945, 168790, 53614, 85151, 178518,
@@ -105,7 +207,7 @@ const two_second = [
   208268, 267334, 229340, 153399, 162925, 298798, 247751,
 ];
 
-const max_size = 639946;
+const max_size = 422747 * 5; // 639946;
 const mean_size = 125000; // per second
 const videoLength = 600000 // milliseconds
 
@@ -144,17 +246,20 @@ async function connect() {
       addToEventLog("Connection closed abruptly.", "error");
     });
 
-  const segmentLength = 2000;
-  perfrom_test_2(transport, segmentLength);
+  const segmentLength = 1000;
+  const abortStream = 3000; // 1000, 1500, 2000, 3000
+  addToEventLog(`test 4, abort: ${abortStream}, segment: ${segmentLength}`);
+  perfrom_test_4(transport, segmentLength, abortStream);
+  // perfrom_test_1(transport, segmentLength);
 }
 
 function create_segment(idx, encoder, intervalTime) {
-  const size = intervalTime == 1000 ? one_second[idx] : two_second[idx];
+  const size = intervalTime == 1000 ? one_second[idx] * 5 : two_second[idx];
   const timestamp = Date.now().toString();
 
   const segment =
-    "S" + 
-    idx.toString().padStart(3, '0') + 
+    "S" +
+    idx.toString().padStart(3, '0') +
     timestamp +
     longString.substring(max_size - (size - timestamp.length - 1), max_size);
   const encodedSegment = encoder.encode(segment);
@@ -238,7 +343,7 @@ async function perfrom_test_3(transport, intervalTime) {
   }, intervalTime);
 }
 
-async function perfrom_test_4(transport, intervalTime) {
+async function perfrom_test_4(transport, intervalTime, abortTime) {
   // stream per segment with prioritization and aborting old streams
 
   const encoder = new TextEncoder("utf-8");
@@ -259,7 +364,7 @@ async function perfrom_test_4(transport, intervalTime) {
     writer.write(segment);
 
     addToEventLog(`Sent a unidirectional stream with data: ${segment.length}`);
-    setTimeout(() => writer.abort(), 2000);
+    setTimeout(() => writer.abort(), abortTime);
 
     counter++;
   }, intervalTime);
@@ -342,7 +447,7 @@ function addToEventLog(text, severity = "info") {
   if (
     mostRecentEntry != null &&
     mostRecentEntry.getBoundingClientRect().top <
-      log.getBoundingClientRect().bottom
+    log.getBoundingClientRect().bottom
   ) {
     entry.scrollIntoView();
   }
