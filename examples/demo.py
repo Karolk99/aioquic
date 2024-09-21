@@ -113,7 +113,7 @@ async def wt(_scope: Scope, receive: Receive, send: Send) -> None:
     rest = {}
 
     with open("stats.csv", 'w') as file:
-        file.write("segment_no,latency,sent,recv,number\n")
+        file.write("segment_no,latency,sent,recv,number,type\n")
 
         while True:
             message = await receive()
@@ -137,13 +137,13 @@ def handle_process(state, stream, data, file):
         if next_value.encode("utf-8") not in data:
             return b''
         
-        if next_value == "S" and len(data) < 18:
+        if next_value == "S" and len(data) < 21:
             return data
 
         idx = data.index(next_value.encode("utf-8"))
         
         if next_value == "S":
-            handle_start(state, stream, data[1:4], data[4:17])
+            handle_start(state, stream, data[1:2], data[2:7], data[7:20])
             state[stream]["next_value"] = "E"
         else:
             handle_end(state, stream, file)
@@ -151,12 +151,12 @@ def handle_process(state, stream, data, file):
 
         data = data[idx + 1:]
 
-def handle_start(state, stream, number, timestamp):
+def handle_start(state, stream, type, number, timestamp):
     timestamp = int(timestamp.decode('utf-8'))
     number = int(number.decode('utf-8'))
     
     current = state[stream]["current"]
-    state[stream][current] = {"sent": timestamp, "number": number}
+    state[stream][current] = {"sent": timestamp, "number": number, "type": type}
 
 def handle_end(state, stream, file):
     current = state[stream]["current"]
@@ -172,8 +172,8 @@ def handle_end(state, stream, file):
 
 def save_segment(name, segment, file):
     duration = segment["recv"] - segment["sent"]
-    file.write(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']}\n")
-    print(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']}\n")
+    file.write(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']},{segment['type']}\n")
+    print(f"{name},{duration},{segment['sent']},{segment['recv']},{segment['number']},{segment['type']}\n")
 
 starlette = Starlette(
     routes=[
